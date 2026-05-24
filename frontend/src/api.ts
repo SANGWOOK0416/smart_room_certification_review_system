@@ -232,7 +232,7 @@ export function fetchNationwideCollectionStatus(token: string) {
   });
 }
 
-export function startNationwideCollection(token: string, payload: { monthsBack?: number } = { monthsBack: 2 }) {
+export function startNationwideCollection(token: string, payload: { monthsBack?: number } = { monthsBack: 6 }) {
   return requestJson<NationwideCollectionStatus>("/api/admin/collection/nationwide", {
     method: "POST",
     headers: { "x-admin-token": token },

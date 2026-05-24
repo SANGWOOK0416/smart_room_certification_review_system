@@ -109,7 +109,7 @@ export function startNationwideCollection(options: {
   if (status.running) return status;
 
   const lawdCodes = options.lawdCodes?.length ? options.lawdCodes : defaultNationwideLawdCodes;
-  const dealYmds = options.dealYmds?.length ? options.dealYmds : recentDealYmds(options.monthsBack ?? 2);
+  const dealYmds = options.dealYmds?.length ? options.dealYmds : recentDealYmds(options.monthsBack ?? 6);
   const kinds = options.kinds?.length ? options.kinds : defaultKinds;
   const delayMs = options.delayMs ?? 350;
 
