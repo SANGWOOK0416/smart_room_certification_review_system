@@ -1,13 +1,13 @@
-node_modules/
+﻿node_modules/
 tools/
 dist/
-client/dist/
-server/dist/
+frontend/dist/
+backend/dist/
 .env
 .env.*
 !.env.example
-!client/.env.example
-server/prisma/migrations/
+!frontend/.env.example
+backend/prisma/migrations/
 *.tsbuildinfo
 *.log
 tmp-*.json
@@ -18,5 +18,6 @@ OPEN_SITE.html
 SITE_LINK.md
 CONTINUE_FROM_RECOVERED_CHAT.md
 gen_week3_ppt.py
-client/vite.config.js
-client/vite.config.d.ts
+frontend/vite.config.js
+frontend/vite.config.d.ts
+

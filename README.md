@@ -1,30 +1,28 @@
-# Smart Room Certification Review System
+﻿# Smart Room Certification Review System
 
-대학가 자취방의 국토교통부 실거래가 데이터와 계약서 인증 기반 거주 리뷰를 함께 확인하는 웹 애플리케이션입니다.
+??숆? ?먯랬諛⑹쓽 援?넗援먰넻遺 ?ㅺ굅?섍? ?곗씠?곗? 怨꾩빟???몄쬆 湲곕컲 嫄곗＜ 由щ럭瑜??④퍡 ?뺤씤?섎뒗 ???좏뵆由ъ??댁뀡?낅땲??
 
-## 기술 스택
+## 湲곗닠 ?ㅽ깮
 
 - Frontend: React, TypeScript, Vite, Kakao Maps JavaScript SDK, lucide-react
 - Backend: Node.js, Express, TypeScript, Prisma Client, Zod
 - Database: PostgreSQL
-- External API: 국토교통부 실거래가 API, 카카오맵 JavaScript SDK
+- External API: 援?넗援먰넻遺 ?ㅺ굅?섍? API, 移댁뭅?ㅻ㏊ JavaScript SDK
 
-## 실행 준비
-
-1. 루트 `.env.example`을 `.env`로 복사하고 값을 채웁니다.
-2. `client/.env.example`을 `client/.env`로 복사하고 카카오 JavaScript 키를 넣습니다.
-3. PostgreSQL 데이터베이스를 준비합니다.
-4. 의존성을 설치하고 Prisma 스키마를 반영합니다.
+## ?ㅽ뻾 以鍮?
+1. 猷⑦듃 `.env.example`??`.env`濡?蹂듭궗?섍퀬 媛믪쓣 梨꾩썎?덈떎.
+2. `frontend/.env.example`??`frontend/.env`濡?蹂듭궗?섍퀬 移댁뭅??JavaScript ?ㅻ? ?ｌ뒿?덈떎.
+3. PostgreSQL ?곗씠?곕쿋?댁뒪瑜?以鍮꾪빀?덈떎.
+4. ?섏〈?깆쓣 ?ㅼ튂?섍퀬 Prisma ?ㅽ궎留덈? 諛섏쁺?⑸땲??
 
 ```bash
 npm install
-npm run db:push --workspace server
+npm run db:push --workspace backend
 npm run dev
 ```
 
-## 환경변수
-
-루트 `.env`
+## ?섍꼍蹂??
+猷⑦듃 `.env`
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/smart_room_safety?schema=public"
@@ -33,18 +31,18 @@ PORT=4000
 CLIENT_ORIGIN="http://localhost:5173"
 ```
 
-`client/.env`
+`frontend/.env`
 
 ```env
 VITE_API_BASE_URL="http://localhost:4000"
 VITE_KAKAO_JAVASCRIPT_KEY="YOUR_KAKAO_JAVASCRIPT_KEY"
 ```
 
-## 주요 기능
+## 二쇱슂 湲곕뒫
 
-- 실거래 매물 조회 및 지도 표시
-- 지역, 건물명, 도로명 주소 검색
-- 계약서 첨부 기반 리뷰 등록
-- 관리자 리뷰 승인, 반려, 삭제
-- 사용자별 리뷰 조회 및 수정, 삭제
-- 전국 실거래 데이터 수집 작업
+- ?ㅺ굅??留ㅻЪ 議고쉶 諛?吏???쒖떆
+- 吏?? 嫄대Ъ紐? ?꾨줈紐?二쇱냼 寃??- 怨꾩빟??泥⑤? 湲곕컲 由щ럭 ?깅줉
+- 愿由ъ옄 由щ럭 ?뱀씤, 諛섎젮, ??젣
+- ?ъ슜?먮퀎 由щ럭 議고쉶 諛??섏젙, ??젣
+- ?꾧뎅 ?ㅺ굅???곗씠???섏쭛 ?묒뾽
+
