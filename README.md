@@ -1,87 +1,50 @@
-# 스마트 자취방 안심 정보 공유 플랫폼
+# Smart Room Certification Review System
 
-"선배들이 알려주는 진짜 자취방 정보, 공공 데이터로 확인하고 리뷰로 검증하세요"
+대학가 자취방의 국토교통부 실거래가 데이터와 계약서 인증 기반 거주 리뷰를 함께 확인하는 웹 애플리케이션입니다.
 
-## 프로젝트 개요
+## 기술 스택
 
-대학 주변 원룸의 실거래가 정보(공공 데이터)와 실제 거주 학생들의 익명 리뷰를 결합하여 신뢰도 높은 주거 정보를 제공하는 서비스입니다. 학생들이 경험한 소음·채광·수압 등의 항목별 리뷰와 공공 데이터 기반 시세/추세 정보를 함께 보여줍니다.
+- Frontend: React, TypeScript, Vite, Kakao Maps JavaScript SDK, lucide-react
+- Backend: Node.js, Express, TypeScript, Prisma Client, Zod
+- Database: PostgreSQL
+- External API: 국토교통부 실거래가 API, 카카오맵 JavaScript SDK
 
-## 핵심 기술
+## 실행 준비
 
-- 백엔드: Node.js (또는 Java Spring Boot 선택 가능)
-- 프론트엔드: React
-- API 명세: OpenAPI (국토교통부 실거래가 연동)
-- DB: Postgresql
-
-## 요구사항 요약
-
-- 공공 데이터 API 연동을 통한 지역별 실거래가 차트 제공
-- 항목별(소음, 채광, 수압 등) 익명 거주 리뷰 시스템
-- 지도 기반 매물 위치 표시 및 필터 검색
-- 허위 리뷰 방지를 위한 영수증 또는 계약서 인증 로직(이미지 업로드)
-
-## 가정된 팀 구성 (4명)
-
-- 김민석 (백엔드)
-- 임상욱 (백엔드)
-- 고영민 (프론트엔드)
-- 이성재 (프론트엔드 / 디자인)
-
-## 5주 개발 일정 (요약)
-
-| 주차 | 단계 | 주요 활동 (Task) | 산출물 |
-|---:|---|---|---|
-| 1주 | 분석 및 기획 | 공공 데이터 API 연동 규격 확인 및 기능 명세서 작성 | API 연동 기술서 |
-| 2주 | 시스템 설계 | DB 스키마 설계(매물-리뷰-사용자 관계) 및 UI 와이어프레임 | ERD, Figma 설계안 |
-| 3주 | 백엔드 구현 | 공공 데이터 수집 모듈 개발 및 리뷰 CRUD API 구축 | 백엔드 서버 소스 |
-| 4주 | 프론트 연동 | React 지도 라이브러리 연동 및 데이터 시각화(차트) 구현 | 통합 빌드본 |
-| 5주 | 고도화/테스트 | 데이터 정합성 테스트 및 배포 환경(AWS 등) 최적화 | 최종 프로젝트 보고서 |
-
-## 기본 폴더 구조 (예시)
-
-```
-smart_room_certification_review_system/
-├─ backend/        # Node.js 또는 Spring Boot 서버
-├─ frontend/       # React 앱
-├─ docs/           # API 명세, ERD, 회의록
-└─ README.md
-```
-
-## 빠른 시작 (개발 환경)
-
-1. 레포지토리 클론
+1. 루트 `.env.example`을 `.env`로 복사하고 값을 채웁니다.
+2. `client/.env.example`을 `client/.env`로 복사하고 카카오 JavaScript 키를 넣습니다.
+3. PostgreSQL 데이터베이스를 준비합니다.
+4. 의존성을 설치하고 Prisma 스키마를 반영합니다.
 
 ```bash
-# 이미 로컬 폴더가 있으면 해당 디렉터리로 이동
-cd smart_room_certification_review_system
-```
-
-2. 백엔드 (Node.js 예시)
-
-```bash
-cd backend
 npm install
-# .env에 DB 접속 정보 및 공공데이터 API 키 설정
+npm run db:push --workspace server
 npm run dev
 ```
 
-3. 프론트엔드 (React 예시)
+## 환경변수
 
-```bash
-cd frontend
-npm install
-npm start
+루트 `.env`
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/smart_room_safety?schema=public"
+MOLIT_SERVICE_KEY="YOUR_MOLIT_SERVICE_KEY"
+PORT=4000
+CLIENT_ORIGIN="http://localhost:5173"
 ```
 
-## 주의 및 향후 작업
+`client/.env`
 
-- 공공 데이터(국토교통부 실거래가 등) 연동 시 API 사용량/인증 정책을 확인해야 합니다.
-- 허위 리뷰 방지 로직은 개인정보·증빙 업로드 관련 법적 요구사항을 충족하도록 설계해야 합니다.
-- 운영 환경에서는 이미지 파일 저장을 S3 같은 외부 스토리지로 전환하는 것을 권장합니다.
+```env
+VITE_API_BASE_URL="http://localhost:4000"
+VITE_KAKAO_JAVASCRIPT_KEY="YOUR_KAKAO_JAVASCRIPT_KEY"
+```
 
-## 연락 및 기여
+## 주요 기능
 
-프로젝트 관련 문의 및 기여는 이 저장소의 이슈 트래커를 이용하세요.
-
----
-Generated and committed by the team scaffold script.
+- 실거래 매물 조회 및 지도 표시
+- 지역, 건물명, 도로명 주소 검색
+- 계약서 첨부 기반 리뷰 등록
+- 관리자 리뷰 승인, 반려, 삭제
+- 사용자별 리뷰 조회 및 수정, 삭제
+- 전국 실거래 데이터 수집 작업

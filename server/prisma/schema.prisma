@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoomType {
+  ONE_ROOM
+  OFFICETEL
+  APARTMENT
+  VILLA
+  DORM_NEARBY
+}
+
+enum DealType {
+  SALE
+  JEONSE
+  MONTHLY_RENT
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  loginId      String   @unique
+  passwordHash String   @default("")
+  role         UserRole @default(USER)
+  email        String?
+  phone        String?
+  nickname     String
+  realName     String?
+  birthDate    DateTime?
+  university   String?
+  createdAt    DateTime @default(now())
+  reviews      Review[]
+}
+
+model Building {
+  id           String        @id @default(cuid())
+  name         String
+  address      String
+  lawdCode     String
+  latitude     Decimal?      @db.Decimal(10, 7)
+  longitude    Decimal?      @db.Decimal(10, 7)
+  roomType     RoomType
+  safetyScore  Decimal?      @db.Decimal(3, 2)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+  reviews      Review[]
+
+  @@index([lawdCode])
+  @@unique([name, address])
+}
+
+model Transaction {
+  id             String   @id @default(cuid())
+  buildingId     String
+  dealType       DealType
+  dealYear       Int
+  dealMonth      Int
+  dealDay        Int?
+  depositAmount  Int?
+  monthlyAmount  Int?
+  saleAmount     Int?
+  areaSquareM    Decimal? @db.Decimal(8, 2)
+  floor          Int?
+  source         String   @default("MOLIT")
+  sourceKey      String   @unique
+  fetchedAt      DateTime @default(now())
+  building       Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@index([dealYear, dealMonth])
+  @@index([dealType])
+}
+
+model Review {
+  id                  String                 @id @default(cuid())
+  buildingId          String
+  userId              String?
+  reviewBuildingName  String?
+  reviewRoadAddress   String?
+  reviewAreaSquareM   Decimal?               @db.Decimal(8, 2)
+  reviewDepositAmount Int?
+  reviewMonthlyRent   Int?
+  reviewMaintenanceFee Int?
+  optionItems         String?
+  rentSatisfaction    Int
+  safetyRating        Int
+  noiseRating         Int
+  landlordRating      Int
+  maintenanceRating   Int
+  content             String
+  isAnonymous         Boolean                @default(true)
+  verificationStatus  VerificationStatus     @default(PENDING)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @default(now()) @updatedAt
+  building            Building               @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  user                User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  verificationDocs    VerificationDocument[]
+
+  @@index([buildingId])
+}
+
+model VerificationDocument {
+  id           String             @id @default(cuid())
+  reviewId     String
+  fileName     String
+  fileUrl      String
+  mimeType     String
+  status       VerificationStatus @default(PENDING)
+  uploadedAt   DateTime           @default(now())
+  review       Review             @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
