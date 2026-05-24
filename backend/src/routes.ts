@@ -270,28 +270,39 @@ router.get("/buildings", async (req, res, next) => {
     const userId = typeof req.query.userId === "string" ? req.query.userId : undefined;
     const keyword = typeof req.query.keyword === "string" ? req.query.keyword.trim() : "";
     const isAdmin = isAdminRequest(req);
+    const keywordFilter = keyword
+      ? {
+          AND: [
+            {
+              OR: [
+                { name: { contains: keyword, mode: "insensitive" as const } },
+                { address: { contains: keyword, mode: "insensitive" as const } },
+                { reviews: { some: { reviewBuildingName: { contains: keyword, mode: "insensitive" as const } } } },
+                { reviews: { some: { reviewRoadAddress: { contains: keyword, mode: "insensitive" as const } } } }
+              ]
+            }
+          ]
+        }
+      : {};
+    const visibleReviewWhere = isAdmin
+      ? {}
+      : {
+          OR: [{ verificationStatus: VerificationStatus.APPROVED }, ...(userId ? [{ userId }] : [])]
+        };
     const buildingWhere = {
       ...(lawdCode ? { lawdCode } : {}),
-      ...(keyword
-        ? {
-            AND: [
-              {
-                OR: [
-                  { name: { contains: keyword, mode: "insensitive" as const } },
-                  { address: { contains: keyword, mode: "insensitive" as const } },
-                  { reviews: { some: { reviewBuildingName: { contains: keyword, mode: "insensitive" as const } } } },
-                  { reviews: { some: { reviewRoadAddress: { contains: keyword, mode: "insensitive" as const } } } }
-                ]
-              }
-            ]
-          }
-        : {}),
+      ...keywordFilter,
       OR: [
         { transactions: { some: {} } },
         { reviews: { some: { verificationStatus: VerificationStatus.APPROVED } } },
         ...(isAdmin ? [{ reviews: { some: {} } }] : []),
         ...(userId ? [{ reviews: { some: { userId } } }] : [])
       ]
+    };
+    const reviewedBuildingWhere = {
+      ...(lawdCode ? { lawdCode } : {}),
+      ...keywordFilter,
+      reviews: { some: visibleReviewWhere }
     };
     const buildingInclude = {
       include: {
@@ -330,12 +341,20 @@ router.get("/buildings", async (req, res, next) => {
     };
 
     if (!lawdCode && !keyword) {
-      const lawdBuckets = await prisma.building.findMany({
-        where: buildingWhere,
-        distinct: ["lawdCode"],
-        select: { lawdCode: true },
-        orderBy: { lawdCode: "asc" }
-      });
+      const [reviewedBuildings, lawdBuckets] = await Promise.all([
+        prisma.building.findMany({
+          where: reviewedBuildingWhere,
+          ...buildingInclude,
+          orderBy: { updatedAt: "desc" },
+          take: 120
+        }),
+        prisma.building.findMany({
+          where: buildingWhere,
+          distinct: ["lawdCode"],
+          select: { lawdCode: true },
+          orderBy: { lawdCode: "asc" }
+        })
+      ]);
 
       const perRegion = [];
       for (const bucketBatch of chunk(lawdBuckets, 6)) {
@@ -353,20 +372,51 @@ router.get("/buildings", async (req, res, next) => {
         );
       }
 
-      const payload = mergeBuildingRecords(perRegion.flat()).map(normalizeBuildingAddress);
+      const payload = mergeBuildingRecords([...reviewedBuildings, ...perRegion.flat()]).map(normalizeBuildingAddress);
       writeBuildingCache(cacheKey, payload);
       res.json(payload);
       return;
     }
 
-    const buildings = await prisma.building.findMany({
-      where: buildingWhere,
-      ...buildingInclude,
-      orderBy: { updatedAt: "desc" },
-      take: 200
-    });
+    const transactionBuildingFilter = {
+      ...(lawdCode ? { lawdCode } : {}),
+      ...(keyword
+        ? {
+            OR: [
+              { name: { contains: keyword, mode: "insensitive" as const } },
+              { address: { contains: keyword, mode: "insensitive" as const } }
+            ]
+          }
+        : {})
+    };
+    const [reviewedBuildings, recentTransactionBuildingRefs] = await Promise.all([
+      prisma.building.findMany({
+        where: reviewedBuildingWhere,
+        ...buildingInclude,
+        orderBy: { updatedAt: "desc" },
+        take: 120
+      }),
+      prisma.transaction.findMany({
+        where: { building: transactionBuildingFilter },
+        distinct: ["buildingId"],
+        select: { buildingId: true },
+        orderBy: { fetchedAt: "desc" },
+        take: 200
+      })
+    ]);
+    const transactionBuildingIds = recentTransactionBuildingRefs.map((transaction) => transaction.buildingId);
+    const transactionBuildings = transactionBuildingIds.length
+      ? await prisma.building.findMany({
+          where: { id: { in: transactionBuildingIds } },
+          ...buildingInclude
+        })
+      : [];
+    const transactionBuildingById = new Map(transactionBuildings.map((building) => [building.id, building]));
+    const orderedTransactionBuildings = transactionBuildingIds
+      .map((buildingId) => transactionBuildingById.get(buildingId))
+      .filter((building): building is (typeof transactionBuildings)[number] => Boolean(building));
 
-    const payload = mergeBuildingRecords(buildings).map(normalizeBuildingAddress);
+    const payload = mergeBuildingRecords([...reviewedBuildings, ...orderedTransactionBuildings]).map(normalizeBuildingAddress);
     writeBuildingCache(cacheKey, payload);
     res.json(payload);
   } catch (error) {
