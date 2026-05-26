@@ -61,6 +61,56 @@ function getBuildingCacheKey(req: Request) {
   });
 }
 
+function buildKeywordFilter(keyword: string) {
+  const trimmed = keyword.trim();
+  if (!trimmed) return {};
+
+  const compact = trimmed.replace(/\s+/g, "");
+  const compactRoadMatch = compact.match(/^(.+(?:로|길))(\d.*)$/);
+  const roadName = compactRoadMatch?.[1];
+  const roadNumber = compactRoadMatch?.[2];
+  const roadNameVariants = roadName
+    ? [...new Set([roadName, roadName.replace(/([가-힣]+로)(\d+번길)$/, "$1 $2")])]
+    : [];
+  const roadAddressParts =
+    roadName && roadNumber
+      ? roadNameVariants.flatMap((roadNameVariant) => [
+            {
+              AND: [
+                { address: { contains: roadNameVariant, mode: "insensitive" as const } },
+                { address: { contains: roadNumber, mode: "insensitive" as const } }
+              ]
+            },
+            {
+              reviews: {
+                some: {
+                  AND: [
+                    { reviewRoadAddress: { contains: roadNameVariant, mode: "insensitive" as const } },
+                    { reviewRoadAddress: { contains: roadNumber, mode: "insensitive" as const } }
+                  ]
+                }
+              }
+            }
+          ])
+      : [];
+
+  return {
+    AND: [
+      {
+        OR: [
+          { name: { contains: trimmed, mode: "insensitive" as const } },
+          { address: { contains: trimmed, mode: "insensitive" as const } },
+          { address: { contains: compact, mode: "insensitive" as const } },
+          { reviews: { some: { reviewBuildingName: { contains: trimmed, mode: "insensitive" as const } } } },
+          { reviews: { some: { reviewRoadAddress: { contains: trimmed, mode: "insensitive" as const } } } },
+          { reviews: { some: { reviewRoadAddress: { contains: compact, mode: "insensitive" as const } } } },
+          ...roadAddressParts
+        ]
+      }
+    ]
+  };
+}
+
 function readBuildingCache(key: string) {
   const cached = buildingCache.get(key);
   if (!cached || cached.expiresAt < Date.now()) {
@@ -270,20 +320,7 @@ router.get("/buildings", async (req, res, next) => {
     const userId = typeof req.query.userId === "string" ? req.query.userId : undefined;
     const keyword = typeof req.query.keyword === "string" ? req.query.keyword.trim() : "";
     const isAdmin = isAdminRequest(req);
-    const keywordFilter = keyword
-      ? {
-          AND: [
-            {
-              OR: [
-                { name: { contains: keyword, mode: "insensitive" as const } },
-                { address: { contains: keyword, mode: "insensitive" as const } },
-                { reviews: { some: { reviewBuildingName: { contains: keyword, mode: "insensitive" as const } } } },
-                { reviews: { some: { reviewRoadAddress: { contains: keyword, mode: "insensitive" as const } } } }
-              ]
-            }
-          ]
-        }
-      : {};
+    const keywordFilter = buildKeywordFilter(keyword);
     const visibleReviewWhere = isAdmin
       ? {}
       : {
@@ -380,14 +417,7 @@ router.get("/buildings", async (req, res, next) => {
 
     const transactionBuildingFilter = {
       ...(lawdCode ? { lawdCode } : {}),
-      ...(keyword
-        ? {
-            OR: [
-              { name: { contains: keyword, mode: "insensitive" as const } },
-              { address: { contains: keyword, mode: "insensitive" as const } }
-            ]
-          }
-        : {})
+      ...buildKeywordFilter(keyword)
     };
     const [reviewedBuildings, recentTransactionBuildingRefs] = await Promise.all([
       prisma.building.findMany({
@@ -746,11 +776,20 @@ router.get("/reviews", async (req, res, next) => {
       },
       include: {
         user: { select: { nickname: true, realName: true } },
-        verificationDocs: { select: { status: true } }
+        verificationDocs: true
       },
       orderBy: { createdAt: "desc" }
     });
-    res.json(reviews);
+    res.json(
+      reviews.map((review) =>
+        isAdmin || (userId && review.userId === userId)
+          ? review
+          : {
+              ...review,
+              verificationDocs: review.verificationDocs.map((document) => ({ status: document.status }))
+            }
+      )
+    );
   } catch (error) {
     next(error);
   }
@@ -1077,7 +1116,8 @@ router.get("/admin/users", async (req, res, next) => {
                 name: true,
                 address: true
               }
-            }
+            },
+            verificationDocs: true
           },
           orderBy: { createdAt: "desc" }
         }
