@@ -44,6 +44,8 @@ model User {
   birthDate    DateTime?
   university   String?
   createdAt    DateTime @default(now())
+  deletedAt    DateTime?
+  restoreUntil DateTime?
   reviews      Review[]
 }
 

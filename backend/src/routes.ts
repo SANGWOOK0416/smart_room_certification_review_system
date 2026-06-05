@@ -6,6 +6,8 @@ import { prisma } from "./db.js";
 import { withLawdAddressPrefix } from "./lawdPrefixes.js";
 import { fetchMolitDeals, MolitDealKind } from "./molit.js";
 import { getNationwideCollectionStatus, startNationwideCollection } from "./nationwideCollector.js";
+import { evaluateRentFairness, rentFairnessRequestSchema } from "./rentFairness.js";
+import { getRentFairnessRegionTree } from "./rentFairnessRegions.js";
 
 export const router = Router();
 
@@ -162,7 +164,9 @@ const publicUserSelect = {
   nickname: true,
   realName: true,
   birthDate: true,
-  role: true
+  role: true,
+  deletedAt: true,
+  restoreUntil: true
 } as const;
 
 const loginUserSelect = {
@@ -215,7 +219,7 @@ router.post("/auth/login", async (req, res, next) => {
       where: { loginId: payload.loginId },
       select: loginUserSelect
     });
-    if (!user || user.passwordHash !== hashPassword(payload.password) || user.role !== UserRole.USER) {
+    if (!user || user.passwordHash !== hashPassword(payload.password) || user.role !== UserRole.USER || user.deletedAt) {
       res.status(401).json({ message: "이메일 또는 비밀번호를 확인해주세요." });
       return;
     }
@@ -228,7 +232,9 @@ router.post("/auth/login", async (req, res, next) => {
       nickname: user.nickname,
       realName: user.realName,
       birthDate: user.birthDate,
-      role: user.role
+      role: user.role,
+      deletedAt: user.deletedAt,
+      restoreUntil: user.restoreUntil
     });
   } catch (error) {
     next(error);
@@ -239,7 +245,7 @@ router.patch("/users/:userId", async (req, res, next) => {
   try {
     const payload = userProfileSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { id: req.params.userId } });
-    if (!user || user.role !== UserRole.USER) {
+    if (!user || user.role !== UserRole.USER || user.deletedAt) {
       res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
       return;
     }
@@ -492,6 +498,19 @@ router.patch("/buildings/:id/location", async (req, res, next) => {
   }
 });
 
+router.get("/rent-fairness/regions", (_req, res) => {
+  res.json(getRentFairnessRegionTree());
+});
+
+router.post("/rent-fairness/evaluate", async (req, res, next) => {
+  try {
+    const payload = rentFairnessRequestSchema.parse(req.body);
+    res.json(await evaluateRentFairness(payload));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/deals", async (req, res, next) => {
   try {
     const query = dealQuerySchema.parse(req.query);
@@ -636,15 +655,67 @@ async function deleteReviewTransaction(reviewId: string) {
 }
 
 function normalizeAddressForMatch(address?: string | null) {
-  return (address ?? "")
+  let value = (address ?? "")
+    .normalize("NFKC")
+    .replace(/\s+/g, "")
+    .trim()
+    .toLowerCase();
+
+  const replacements: Array<[RegExp, string]> = [
+    [/\uACBD\uC0C1\uBD81\uB3C4/g, "\uACBD\uBD81"],
+    [/\uACBD\uC0C1\uB0A8\uB3C4/g, "\uACBD\uB0A8"],
+    [/\uC804\uBD81\uD2B9\uBCC4\uC790\uCE58\uB3C4/g, "\uC804\uBD81"],
+    [/\uC804\uB77C\uBD81\uB3C4/g, "\uC804\uBD81"],
+    [/\uC804\uB77C\uB0A8\uB3C4/g, "\uC804\uB0A8"],
+    [/\uCDA9\uCCAD\uBD81\uB3C4/g, "\uCDA9\uBD81"],
+    [/\uCDA9\uCCAD\uB0A8\uB3C4/g, "\uCDA9\uB0A8"],
+    [/\uAC15\uC6D0\uD2B9\uBCC4\uC790\uCE58\uB3C4/g, "\uAC15\uC6D0"],
+    [/\uAC15\uC6D0\uB3C4/g, "\uAC15\uC6D0"],
+    [/\uC81C\uC8FC\uD2B9\uBCC4\uC790\uCE58\uB3C4/g, "\uC81C\uC8FC"],
+    [/\uC11C\uC6B8\uD2B9\uBCC4\uC2DC/g, "\uC11C\uC6B8"],
+    [/\uBD80\uC0B0\uAD11\uC5ED\uC2DC/g, "\uBD80\uC0B0"],
+    [/\uB300\uAD6C\uAD11\uC5ED\uC2DC/g, "\uB300\uAD6C"],
+    [/\uC778\uCC9C\uAD11\uC5ED\uC2DC/g, "\uC778\uCC9C"],
+    [/\uAD11\uC8FC\uAD11\uC5ED\uC2DC/g, "\uAD11\uC8FC"],
+    [/\uB300\uC804\uAD11\uC5ED\uC2DC/g, "\uB300\uC804"],
+    [/\uC6B8\uC0B0\uAD11\uC5ED\uC2DC/g, "\uC6B8\uC0B0"],
+    [/\uC138\uC885\uD2B9\uBCC4\uC790\uCE58\uC2DC/g, "\uC138\uC885"]
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    value = value.replace(pattern, replacement);
+  }
+
+  return value
+    .replace(
+      /^(?:\uC11C\uC6B8|\uBD80\uC0B0|\uB300\uAD6C|\uC778\uCC9C|\uAD11\uC8FC|\uB300\uC804|\uC6B8\uC0B0|\uC138\uC885|\uACBD\uBD81|\uACBD\uB0A8|\uC804\uBD81|\uC804\uB0A8|\uCDA9\uBD81|\uCDA9\uB0A8|\uAC15\uC6D0|\uC81C\uC8FC)?(?:[\uAC00-\uD7A3]+(?:\uC2DC|\uAD70|\uAD6C)){0,2}/u,
+      ""
+    );
+}
+
+function canonicalBuildingGroupKey(building: { address: string; name: string; lawdCode: string }) {
+  const normalizedName = normalizeBuildingNameForMatch(building.name);
+  if (isSpecificBuildingName(normalizedName)) {
+    return `${building.lawdCode}:name:${normalizedName}`;
+  }
+
+  const normalizedAddress = normalizeAddressForMatch(building.address);
+  return normalizedAddress ? `${building.lawdCode}:${normalizedAddress}` : `${building.lawdCode}:${building.name.trim().toLowerCase()}`;
+}
+
+function normalizeBuildingNameForMatch(name?: string | null) {
+  return (name ?? "")
+    .normalize("NFKC")
     .replace(/\s+/g, "")
     .trim()
     .toLowerCase();
 }
 
-function canonicalBuildingGroupKey(building: { address: string; name: string; lawdCode: string }) {
-  const normalizedAddress = normalizeAddressForMatch(building.address);
-  return normalizedAddress ? `${building.lawdCode}:${normalizedAddress}` : `${building.lawdCode}:${building.name.trim().toLowerCase()}`;
+function isSpecificBuildingName(normalizedName: string) {
+  if (!normalizedName || normalizedName.length < 3) return false;
+  return !/^(?:\uB2E8\uB3C5|\uB2E4\uAC00\uAD6C|\uC6D0\uB8F8|\uC624\uD53C\uC2A4\uD154|\uC544\uD30C\uD2B8|\uBE4C\uB77C|\uC8FC\uD0DD|\uAE30\uD0C0)/u.test(
+    normalizedName
+  );
 }
 
 function mergeBuildingRecords<T extends {
@@ -708,10 +779,48 @@ async function findBuildingsByCanonicalAddress(roadAddress?: string | null) {
   if (!normalized) return [];
 
   const buildings = await prisma.building.findMany({
+    include: {
+      reviews: {
+        select: {
+          reviewRoadAddress: true
+        }
+      }
+    },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }]
   });
 
-  return buildings.filter((building) => normalizeAddressForMatch(building.address) === normalized);
+  return buildings.filter((building) => {
+    if (normalizeAddressForMatch(building.address) === normalized) return true;
+    return building.reviews.some((review) => normalizeAddressForMatch(review.reviewRoadAddress) === normalized);
+  });
+}
+
+async function findRelatedBuildingsForReview(building: { address: string; lawdCode: string; name: string }) {
+  const normalizedAddress = normalizeAddressForMatch(building.address);
+  const normalizedName = normalizeBuildingNameForMatch(building.name);
+  const canMatchByName = isSpecificBuildingName(normalizedName);
+
+  const buildings = await prisma.building.findMany({
+    where: {
+      lawdCode: building.lawdCode
+    },
+    include: {
+      reviews: {
+        select: {
+          reviewRoadAddress: true
+        }
+      }
+    },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }]
+  });
+
+  return buildings.filter((candidate) => {
+    if (normalizedAddress && normalizeAddressForMatch(candidate.address) === normalizedAddress) return true;
+    if (normalizedAddress && candidate.reviews.some((review) => normalizeAddressForMatch(review.reviewRoadAddress) === normalizedAddress)) {
+      return true;
+    }
+    return canMatchByName && normalizeBuildingNameForMatch(candidate.name) === normalizedName;
+  });
 }
 
 async function findBuildingByRoadAddress(roadAddress?: string) {
@@ -727,29 +836,7 @@ async function resolveReviewBuilding(payload: {
   const baseBuilding = await prisma.building.findUnique({ where: { id: payload.buildingId } });
   if (!baseBuilding) return null;
 
-  if (!payload.buildingName || !payload.roadAddress) return baseBuilding;
-
-  const matchedByAddress = await findBuildingByRoadAddress(payload.roadAddress);
-  if (matchedByAddress) return matchedByAddress;
-
-  return prisma.building.upsert({
-    where: {
-      name_address: {
-        name: payload.buildingName,
-        address: payload.roadAddress
-      }
-    },
-    create: {
-      name: payload.buildingName,
-      address: payload.roadAddress,
-      lawdCode: baseBuilding.lawdCode,
-      roomType: baseBuilding.roomType
-    },
-    update: {
-      lawdCode: baseBuilding.lawdCode,
-      roomType: baseBuilding.roomType
-    }
-  });
+  return baseBuilding;
 }
 
 router.get("/reviews", async (req, res, next) => {
@@ -763,7 +850,7 @@ router.get("/reviews", async (req, res, next) => {
       return;
     }
 
-    const relatedBuildings = await findBuildingsByCanonicalAddress(building.address);
+    const relatedBuildings = await findRelatedBuildingsForReview(building);
     const relatedBuildingIds = relatedBuildings.length ? relatedBuildings.map((item) => item.id) : [buildingId];
     const reviews = await prisma.review.findMany({
       where: {
@@ -799,7 +886,7 @@ router.post("/reviews", async (req, res, next) => {
   try {
     const payload = reviewSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-    if (!user || user.role !== UserRole.USER) {
+    if (!user || user.role !== UserRole.USER || user.deletedAt) {
       res.status(403).json({ message: "로그인한 사용자만 계약서 인증 리뷰를 등록할 수 있습니다." });
       return;
     }
@@ -850,7 +937,7 @@ router.post("/reviews/custom", async (req, res, next) => {
   try {
     const payload = customReviewSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-    if (!user || user.role !== UserRole.USER) {
+    if (!user || user.role !== UserRole.USER || user.deletedAt) {
       res.status(403).json({ message: "로그인한 사용자만 계약서 인증 리뷰를 등록할 수 있습니다." });
       return;
     }
@@ -1091,6 +1178,8 @@ router.get("/admin/users", async (req, res, next) => {
         realName: true,
         birthDate: true,
         createdAt: true,
+        deletedAt: true,
+        restoreUntil: true,
         _count: { select: { reviews: true } },
         reviews: {
           select: {
@@ -1126,6 +1215,83 @@ router.get("/admin/users", async (req, res, next) => {
     });
 
     res.json(users);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/admin/users/:userId", async (req, res, next) => {
+  try {
+    if (!isAdminRequest(req)) {
+      res.status(401).json({ message: "관리자 로그인이 필요합니다." });
+      return;
+    }
+
+    const userId = z.string().min(1).parse(req.params.userId);
+    const restoreUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const user = await prisma.user.findFirst({
+      where: { id: userId, role: UserRole.USER },
+      select: { id: true, deletedAt: true }
+    });
+
+    if (!user) {
+      res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+      return;
+    }
+
+    const deletedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        deletedAt: user.deletedAt ?? new Date(),
+        restoreUntil
+      },
+      select: publicUserSelect
+    });
+
+    res.json(deletedUser);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/admin/users/:userId/restore", async (req, res, next) => {
+  try {
+    if (!isAdminRequest(req)) {
+      res.status(401).json({ message: "관리자 로그인이 필요합니다." });
+      return;
+    }
+
+    const userId = z.string().min(1).parse(req.params.userId);
+    const user = await prisma.user.findFirst({
+      where: { id: userId, role: UserRole.USER },
+      select: { id: true, deletedAt: true, restoreUntil: true }
+    });
+
+    if (!user) {
+      res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+      return;
+    }
+
+    if (!user.deletedAt) {
+      res.status(409).json({ message: "삭제 보관 중인 사용자가 아닙니다." });
+      return;
+    }
+
+    if (user.restoreUntil && user.restoreUntil.getTime() < Date.now()) {
+      res.status(410).json({ message: "7일 복구 가능 기간이 지났습니다." });
+      return;
+    }
+
+    const restoredUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        deletedAt: null,
+        restoreUntil: null
+      },
+      select: publicUserSelect
+    });
+
+    res.json(restoredUser);
   } catch (error) {
     next(error);
   }
