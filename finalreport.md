@@ -1,5 +1,22 @@
 # 자취방 거래 안심리뷰 시스템 최종 보고서
 
+## 제출 정보
+
+| 항목 | 내용 |
+| --- | --- |
+| 프로젝트명 | 자취방 거래 안심리뷰 시스템 |
+| 제출일 | 2026-06-08 |
+| 조 | 4조 |
+
+## 팀원 및 역할
+
+| 이름 | 역할 | 담당 내용 |
+| --- | --- | --- |
+| 고영민 | 프론트엔드 | 지도 화면, 매물 상세 UI, 필터/검색 UI, 사용자 화면 구현 |
+| 김민석 | DB 설계 및 문서화 | Prisma 스키마, 테이블 관계 설계, 테스트 케이스, 최종 보고서 작성 |
+| 임상욱 | 백엔드 API | 국토교통부 API 연동, 리뷰/매물/관리자 API, 데이터 수집 로직 구현 |
+| 이성재 | 프론트 연동 및 테스트 | 리뷰 작성/조회 UI, 계약서 업로드 UI, 통합 테스트 및 오류 개선 |
+
 ## 목차
 
 ```text
@@ -100,25 +117,25 @@ flowchart LR
     Kakao["Kakao Map API"]
 
     subgraph System["자취방 거래 안심리뷰 시스템"]
-        UC1(("회원가입"))
-        UC2(("로그인"))
-        UC3(("지도 매물 조회"))
-        UC4(("지역/주소 검색"))
-        UC5(("매물 상세 조회"))
-        UC6(("계약서 첨부 리뷰 등록"))
-        UC7(("마이페이지 리뷰 관리"))
-        UC8(("월세 적정성 계산"))
+        UC1(["회원가입"])
+        UC2(["로그인"])
+        UC3(["지도 매물 조회"])
+        UC4(["지역/주소 검색"])
+        UC5(["매물 상세 조회"])
+        UC6(["계약서 첨부 리뷰 등록"])
+        UC7(["마이페이지 리뷰 관리"])
+        UC8(["월세 적정성 계산"])
 
-        AC1(("관리자 로그인"))
-        AC2(("리뷰 승인/반려"))
-        AC3(("리뷰 삭제"))
-        AC4(("사용자 삭제/복구"))
-        AC5(("전국 실거래가 수집"))
-        AC6(("계약서 검증 자료 확인"))
+        AC1(["관리자 로그인"])
+        AC2(["리뷰 승인/반려"])
+        AC3(["리뷰 삭제"])
+        AC4(["사용자 삭제/복구"])
+        AC5(["전국 실거래가 수집"])
+        AC6(["계약서 검증 자료 확인"])
 
-        EX1(("실거래 데이터 조회"))
-        EX2(("주소 좌표 변환"))
-        EX3(("지도 마커 표시"))
+        EX1(["실거래 데이터 조회"])
+        EX2(["주소 좌표 변환"])
+        EX3(["지도 마커 표시"])
     end
 
     User --- UC1
@@ -210,15 +227,15 @@ erDiagram
 
     USER {
         string id PK
-        string loginId UK
+        string loginId
         string passwordHash
-        UserRole role
+        string role
         string email
         string phone
         string nickname
-        datetime createdAt
-        datetime deletedAt
-        datetime restoreUntil
+        date createdAt
+        date deletedAt
+        date restoreUntil
     }
 
     BUILDING {
@@ -226,29 +243,29 @@ erDiagram
         string name
         string address
         string lawdCode
-        decimal latitude
-        decimal longitude
-        RoomType roomType
-        decimal safetyScore
-        datetime createdAt
-        datetime updatedAt
+        float latitude
+        float longitude
+        string roomType
+        float safetyScore
+        date createdAt
+        date updatedAt
     }
 
     TRANSACTION {
         string id PK
         string buildingId FK
-        DealType dealType
+        string dealType
         int dealYear
         int dealMonth
         int dealDay
         int depositAmount
         int monthlyAmount
         int saleAmount
-        decimal areaSquareM
+        float areaSquareM
         int floor
         string source
-        string sourceKey UK
-        datetime fetchedAt
+        string sourceKey
+        date fetchedAt
     }
 
     REVIEW {
@@ -257,7 +274,7 @@ erDiagram
         string userId FK
         string reviewBuildingName
         string reviewRoadAddress
-        decimal reviewAreaSquareM
+        float reviewAreaSquareM
         int reviewDepositAmount
         int reviewMonthlyRent
         int reviewMaintenanceFee
@@ -268,9 +285,9 @@ erDiagram
         int landlordRating
         int maintenanceRating
         string content
-        VerificationStatus verificationStatus
-        datetime createdAt
-        datetime updatedAt
+        string verificationStatus
+        date createdAt
+        date updatedAt
     }
 
     VERIFICATION_DOCUMENT {
@@ -279,8 +296,8 @@ erDiagram
         string fileName
         string fileUrl
         string mimeType
-        VerificationStatus status
-        datetime uploadedAt
+        string status
+        date uploadedAt
     }
 ```
 
